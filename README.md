@@ -13,14 +13,18 @@ Translation (Category 2: English ↔ Kokborok).
 
 ## Scope of this repository
 
-This repository contains the **inference and evaluation** pipeline only.
+This repository contains the full **inference and evaluation** pipeline, plus a
+**reconstructed** fine-tuning driver.
 
-The QLoRA fine-tuning script is **not** included — it was not preserved from the
-original training run. The training hyperparameters are documented below and on
-the model card, and `adapter_config.json` in the model repository records the
-LoRA configuration exactly, but the training driver itself cannot be republished
-faithfully and we would rather omit it than reconstruct something that was not
-what actually ran.
+The script that actually produced the released adapter was not preserved.
+`train.py` is a reconstruction, written from the hyperparameters recorded on the
+model card and in `adapter_config.json` (Table 1 of the paper) and from the
+corpus split documented in Section 3.1. It reproduces the training
+*configuration* faithfully; it is not a bit-for-bit replay, and the warmup
+schedule and hardware were never logged. `train.py` says so at the top, and
+prints which of its settings are recovered facts and which are defaults chosen
+after the fact. If you want the exact adapter, download it rather than
+retraining it.
 
 ## Official WMT 2026 results
 
@@ -43,26 +47,32 @@ verified to reproduce the notebook's own test cases byte-for-byte.
 
 | Paper item | Reproducible here? | Entry point |
 |---|---|---|
+| Data splits (2,266 → 1,812/227/227; 11,428 → 10,856/572) | Yes, in seconds, no GPU | `verify_split.py` |
 | Submission files (primary + contrastive) | Yes | `run_submission.py` |
-| Table 2 — KokLLaMA vs. zero-shot baseline | Yes | `run_evaluation.py` |
-| Table 5 — post-processing ablation | Yes | `run_evaluation.py` |
+| Table 3 — KokLLaMA vs. zero-shot baseline | Yes | `run_evaluation.py` |
 | Table 4 — qualitative examples | Yes | `run_evaluation.py --qualitative` |
-| Table 1 — training hyperparameters | Documented, not runnable | training script not preserved |
-| Table 3 — conversational QA eval (n=50) | **No** | evaluation set not preserved |
+| Table 5 — post-processing ablation | Yes | `run_evaluation.py` |
+| Table 1 — training hyperparameters | Configuration only, see above | `train.py` |
+| Table 6 — conversational QA eval (n=50) | **No** | evaluation set not preserved |
 
-The two gaps are honest ones. The QLoRA fine-tuning driver was lost, and the
-50-pair conversational evaluation set used for Table 3 was defined in a notebook
-cell that was deleted before the notebook was saved, so neither can be
-republished faithfully. `make_en_to_trp_few_shot()` in `prompts.py` is the
-few-shot prompt that experiment used; it is included for reference but nothing
-in this repository calls it.
+Run `verify_split.py` first. It needs no GPU and no model download, and it
+confirms that your copies of the data files are the same ones the paper used.
+
+One gap is unrecoverable. The 50-pair conversational evaluation set behind
+Table 6 was defined in a notebook cell that was deleted before the notebook was
+saved, and no copy survives. That table is reported in the paper as a
+development observation rather than a reproducible result.
+`make_en_to_trp_few_shot()` in `prompts.py` is the few-shot prompt that
+experiment used; it is included for reference but nothing here calls it.
 
 ## Layout
 
 | File | Purpose |
 |---|---|
-| `config.py` | Paths, model IDs, seed, decoding parameters |
-| `data.py` | Loads the test files; builds the deterministic 80/10/10 split |
+| `config.py` | Paths, model IDs, seed, decoding and training parameters |
+| `data.py` | Loads the test files and the instruction corpus; builds both splits |
+| `verify_split.py` | Fast, model-free check that the data matches the paper |
+| `train.py` | Reconstructed QLoRA driver — read its header first |
 | `prompts.py` | Translation prompts (KokLLaMA, baseline, few-shot) |
 | `postprocess.py` | Rule-based output cleanup |
 | `model.py` | 4-bit NF4 model loading |
@@ -88,9 +98,11 @@ data/English-Kokborok Training Data 2026.xlsx
 Then:
 
 ```bash
+python verify_split.py                   # first: confirms your data matches the paper
 python run_submission.py                 # writes the four submission files to outputs/
-python run_evaluation.py                 # Tables 2 and 5
+python run_evaluation.py                 # Tables 3 and 5
 python run_evaluation.py --qualitative   # also prints the Table 4 examples
+python train.py --dry-run                # prints the training plan, trains nothing
 ```
 
 `run_evaluation.py` additionally writes `outputs/eval_outputs.json` containing
@@ -113,7 +125,7 @@ generation seed is required.
 system — see `generate.py` for why this matters.
 
 **Training hyperparameters** (from the model card and `adapter_config.json`;
-the training script itself is not in this repository):
+implemented in `train.py`, which is a reconstruction — see "Scope" above):
 
 | | |
 |---|---|
@@ -131,19 +143,33 @@ the training script itself is not in this repository):
 The warmup schedule, hardware configuration and wall-clock training time were
 not logged during the original run and are therefore not reported.
 
-**Corpus version.** The model was fine-tuned on 10,856 instruction pairs; the
-publicly released `agnivamaiti/kokborok-qa` contains 4,943 deduplicated pairs.
-Re-running with only the released split may not reproduce the reported numbers
-exactly.
+**Corpus provenance.** This matters, and the numbers are easy to confuse.
+
+| | pairs |
+|---|---|
+| Instruction corpus used for fine-tuning | 11,428 |
+| → training split (95%) | 10,856 |
+| → held-out split (5%) | 572 |
+| Public release `agnivamaiti/kokborok-qa` | 4,943 rows / **2,514 distinct** |
+
+The public release is an **earlier and smaller snapshot**, not a deduplicated
+copy and not a strict subset: it contains roughly 49% duplicate rows, and 81.7%
+of its distinct pairs also occur in the 11,428-pair corpus. Fine-tuning on the
+release alone will **not** reproduce the reported model. The 11,428-pair corpus
+is not redistributed here; `config.SFT_CORPUS` points at where `train.py` and
+`verify_split.py` expect to find it.
+
+The `10,856` figure that appears in the paper is the *training split*, not the
+corpus size — `verify_split.py` checks this derivation explicitly.
 
 **Evaluation caveat.** The internal split is a 10% slice of the official
 *training* corpus and is predominantly biblical in domain, whereas the official
 test set is news. Internal figures substantially under-estimate official
 performance (0.37 vs. 5.11 BLEU for EN→TRP).
 
-**Not included.** The conversational-QA evaluation reported in the paper (n=50)
-used an evaluation set that was not preserved in the source notebook, so that
-experiment is not reproducible from this repository.
+**Not included.** The conversational-QA evaluation reported in the paper (n=50,
+Table 6) used an evaluation set that was not preserved in the source notebook,
+so that experiment is not reproducible from this repository.
 
 ## Citation
 

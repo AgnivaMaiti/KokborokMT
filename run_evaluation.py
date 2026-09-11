@@ -1,9 +1,9 @@
 """Internal evaluation on the held-out split (n=227).
 
 Reproduces, from the submitted system:
-  * Table 2 -- KokLLaMA vs. zero-shot baseline
-  * Table 4 -- qualitative examples (with --qualitative)
-  * Table 5 -- post-processing ablation (Appendix A)
+  * Table 3 -- KokLLaMA vs. zero-shot baseline
+  * Table 4 -- qualitative examples, Appendix A (with --qualitative)
+  * Table 5 -- post-processing ablation, Appendix B
 
 IMPORTANT: this split is a 10% slice of the official *training* corpus, whose
 content is predominantly biblical. The official WMT 2026 test set is news-domain
@@ -44,11 +44,32 @@ def _row(name, direction, scores):
 
 
 def show_qualitative(eval_en, eval_trp, et_raw, et_clean, te_raw, te_clean, n=8):
-    """Table 4 sampling: seed 42, 8 examples, both directions."""
+    """Print the Table 4 rows, then a wider seeded sample.
+
+    Table 4 in the paper shows the first three EN->TRP items and the first
+    TRP->EN item of the held-out split, in split order. Those exact rows are
+    printed first so the table can be checked line by line. The seeded sample
+    that follows is a broader view of the same outputs, not part of the table.
+    """
+    print("\nTABLE 4 ROWS (first 3 EN->TRP, first 1 TRP->EN, in split order)")
+    print("=" * 72)
+    for i in range(min(3, len(eval_en))):
+        print(f"Source (EN) : {eval_en[i]}")
+        print(f"Reference   : {eval_trp[i]}")
+        print(f"Raw Output  : {et_raw[i]}")
+        print(f"Prediction  : {et_clean[i]}")
+        print("-" * 72)
+    if eval_trp:
+        print(f"Source (TRP)   : {eval_trp[0]}")
+        print(f"Reference (EN) : {eval_en[0]}")
+        print(f"Raw Output     : {te_raw[0]}")
+        print(f"Prediction     : {te_clean[0]}")
+        print("-" * 72)
+
     random.seed(config.SEED)
     idx = random.sample(range(len(eval_en)), min(n, len(eval_en)))
 
-    print("\nQUALITATIVE EXAMPLES - EN->TRP")
+    print("\nADDITIONAL SAMPLE (seed %d) - EN->TRP" % config.SEED)
     print("=" * 72)
     for i in idx:
         print(f"EN  : {eval_en[i]}")
@@ -57,7 +78,7 @@ def show_qualitative(eval_en, eval_trp, et_raw, et_clean, te_raw, te_clean, n=8)
         print(f"PRED: {et_clean[i]}")
         print("-" * 72)
 
-    print("\nQUALITATIVE EXAMPLES - TRP->EN")
+    print("\nADDITIONAL SAMPLE (seed %d) - TRP->EN" % config.SEED)
     print("=" * 72)
     for i in idx:
         print(f"TRP : {eval_trp[i]}")
@@ -125,7 +146,7 @@ def main():
 
     # --- Tables --------------------------------------------------------------
     bar = "=" * 72
-    print(f"\n{bar}\nTABLE 2: KokLLaMA vs. Zero-Shot Baseline (n={len(eval_en)})\n{bar}")
+    print(f"\n{bar}\nTABLE 3: KokLLaMA vs. Zero-Shot Baseline (n={len(eval_en)})\n{bar}")
     print(f"{'System':<40} {'Dir':<8} {'BLEU':>6} {'chrF++':>7} {'TER':>7}")
     print("-" * 72)
     _row("Llama-3.2-3B-Instruct (zero-shot)", "EN->TRP", z_et)

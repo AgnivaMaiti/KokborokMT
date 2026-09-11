@@ -6,6 +6,8 @@ reported numbers come from a deterministic 10% slice of the official *training*
 corpus -- see `build_splits` and Section 3.2 of the paper.
 """
 
+import io
+import json
 import re
 import unicodedata
 
@@ -74,3 +76,57 @@ def build_splits(train_xlsx=None, seed=None):
         f"Split: train={len(train_pairs)}, dev={len(dev_pairs)}, eval={len(eval_test)}"
     )
     return train_pairs, dev_pairs, eval_en, eval_trp
+
+
+# --- Conversational instruction corpus (SFT) --------------------------------
+# This is the corpus the model was fine-tuned on. It is NOT the parallel corpus
+# above, and it is not redistributed with this repository -- see the README.
+
+def load_instruction_corpus(path=None):
+    """Load the Kokborok instruction corpus as a list of {prompt, completion}.
+
+    Malformed lines and records missing either field are skipped, matching the
+    cleaning applied before the original fine-tuning run. With the corpus used
+    in the paper this returns 11,428 records.
+    """
+    path = path or config.SFT_CORPUS
+    records, malformed = [], 0
+    for line in io.open(path, encoding="utf-8"):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            r = json.loads(line)
+        except json.JSONDecodeError:
+            malformed += 1
+            continue
+        if r.get("prompt") and r.get("completion"):
+            records.append({"prompt": r["prompt"], "completion": r["completion"]})
+
+    print(f"Instruction corpus: {len(records)} pairs "
+          f"({malformed} malformed lines skipped)")
+    return records
+
+
+def split_instruction_corpus(records, eval_fraction=None, seed=None):
+    """Split the instruction corpus 95/5 (paper Table 1).
+
+    Uses `datasets.Dataset.train_test_split`, which is what the original run
+    used; with 11,428 records and `test_size=0.05` this yields exactly
+    10,856 training and 572 evaluation pairs, the numbers reported in the paper.
+    """
+    from datasets import Dataset
+
+    eval_fraction = config.SFT_EVAL_FRACTION if eval_fraction is None else eval_fraction
+    seed = config.SEED if seed is None else seed
+
+    ds = Dataset.from_list(records)
+    split = ds.train_test_split(test_size=eval_fraction, seed=seed)
+
+    print(f"SFT split: train={len(split['train'])}, eval={len(split['test'])}")
+    return split["train"], split["test"]
+
+
+def format_sft_example(record):
+    """Render one instruction pair into the flat text the SFT loop consumes."""
+    return f"User: {record['prompt']}\nAssistant: {record['completion']}"

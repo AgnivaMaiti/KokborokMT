@@ -8,3 +8,8 @@ scikit-learn
 pandas
 openpyxl
 tqdm
+datasets
+
+# Needed only by train.py (the reconstructed fine-tuning driver).
+peft
+trl

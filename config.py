@@ -29,6 +29,12 @@ TRAIN_XLSX = os.environ.get(
     "TRAIN_XLSX", "data/English-Kokborok Training Data 2026.xlsx"
 )
 
+# Kokborok conversational instruction corpus used for SFT (11,428 pairs).
+# NOT redistributed here -- see the README, "Corpus provenance". The public
+# release `agnivamaiti/kokborok-qa` is an earlier, smaller snapshot (4,943 rows,
+# 2,514 distinct pairs) and will NOT reproduce the reported numbers.
+SFT_CORPUS = os.environ.get("SFT_CORPUS", "data/kokborok_train_corpus_11428.jsonl")
+
 OUT_DIR = os.environ.get("OUT_DIR", "outputs")
 
 # --- Reproducibility ---------------------------------------------------------
@@ -50,3 +56,22 @@ MAX_INPUT_LENGTH = 512
 MIN_WORDS = 3
 MAX_WORDS = 200
 MAX_LENGTH_RATIO = 5.0
+
+# --- QLoRA fine-tuning (paper Table 1) ---------------------------------------
+# Reproduced from the model card and adapter_config.json. See train.py for the
+# important caveat about what this configuration is and is not.
+LORA_R = 64
+LORA_ALPHA = 128
+LORA_DROPOUT = 0.05
+LORA_TARGET_MODULES = [
+    "q_proj", "k_proj", "v_proj", "o_proj",
+    "gate_proj", "up_proj", "down_proj",
+]
+NUM_EPOCHS = 3
+PER_DEVICE_TRAIN_BATCH_SIZE = 8
+GRAD_ACCUM_STEPS = 2          # effective batch 16
+LEARNING_RATE = 2e-4
+OPTIM = "paged_adamw_32bit"
+MAX_SEQ_LENGTH = 1024
+SFT_EVAL_FRACTION = 0.05      # 95/5 train/eval split -> 10,856 / 572
+ADAPTER_OUT_DIR = os.environ.get("ADAPTER_OUT_DIR", "outputs/kokllama-adapter")
