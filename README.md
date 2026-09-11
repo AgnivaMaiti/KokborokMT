@@ -34,6 +34,29 @@ what actually ran.
 Primary runs placed 3rd of 4 (EN→TRP) and 3rd of 5 (TRP→EN) submitted primary
 systems.
 
+## What this code reproduces
+
+Every generation call here matches the submitted notebook parameter-for-parameter
+(verified against the original notebook: batch size, beams, `max_new_tokens`,
+`repetition_penalty`, post-processing flag, per call site). `postprocess()` is
+verified to reproduce the notebook's own test cases byte-for-byte.
+
+| Paper item | Reproducible here? | Entry point |
+|---|---|---|
+| Submission files (primary + contrastive) | Yes | `run_submission.py` |
+| Table 2 — KokLLaMA vs. zero-shot baseline | Yes | `run_evaluation.py` |
+| Table 5 — post-processing ablation | Yes | `run_evaluation.py` |
+| Table 4 — qualitative examples | Yes | `run_evaluation.py --qualitative` |
+| Table 1 — training hyperparameters | Documented, not runnable | training script not preserved |
+| Table 3 — conversational QA eval (n=50) | **No** | evaluation set not preserved |
+
+The two gaps are honest ones. The QLoRA fine-tuning driver was lost, and the
+50-pair conversational evaluation set used for Table 3 was defined in a notebook
+cell that was deleted before the notebook was saved, so neither can be
+republished faithfully. `make_en_to_trp_few_shot()` in `prompts.py` is the
+few-shot prompt that experiment used; it is included for reference but nothing
+in this repository calls it.
+
 ## Layout
 
 | File | Purpose |
@@ -65,9 +88,14 @@ data/English-Kokborok Training Data 2026.xlsx
 Then:
 
 ```bash
-python run_submission.py     # writes the four submission files to outputs/
-python run_evaluation.py     # prints the internal comparison and ablation tables
+python run_submission.py                 # writes the four submission files to outputs/
+python run_evaluation.py                 # Tables 2 and 5
+python run_evaluation.py --qualitative   # also prints the Table 4 examples
 ```
+
+`run_evaluation.py` additionally writes `outputs/eval_outputs.json` containing
+the raw and post-processed generations for both directions, so the ablation can
+be re-scored without re-running the model.
 
 A GPU with roughly 8 GB of VRAM is sufficient for 4-bit inference.
 

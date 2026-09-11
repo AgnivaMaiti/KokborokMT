@@ -8,6 +8,9 @@ Override any of these with environment variables of the same name, e.g.
 import os
 
 # --- Team / submission -------------------------------------------------------
+# Affects output filenames only. The source notebook emitted "SCE-KIIT-NLP";
+# the files were renamed to "SCE-KIIT" before submission, which is the name the
+# organisers scored and published. We default to the submitted name.
 TEAM_NAME = os.environ.get("TEAM_NAME", "SCE-KIIT")
 
 # --- Models ------------------------------------------------------------------
