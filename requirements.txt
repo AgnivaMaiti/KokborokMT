@@ -1,0 +1,10 @@
+transformers==4.46.0
+accelerate
+bitsandbytes
+torch
+sacrebleu
+evaluate
+scikit-learn
+pandas
+openpyxl
+tqdm
